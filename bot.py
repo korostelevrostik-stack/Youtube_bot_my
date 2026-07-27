@@ -4,11 +4,13 @@ import yt_dlp
 import os
 import re
 
-TOKEN = '8707409862:AAFEfJxi8sXmCdg1Uy9Nb-R4qBMFSzl83Rw'  # ЗАМЕНИ НА СВОЙ
+# ===== ЗАМЕНИ НА СВОЙ ТОКЕН =====
+TOKEN = '8707409862:AAFEfJxi8sXmCdg1Uy9Nb-R4qBMFSzl83Rw'
+# =================================
 
 bot = telebot.TeleBot(TOKEN)
 
-# Настройки качества
+# Доступные качества и форматы
 QUALITY_OPTS = {
     '144p': 'best[height<=144][ext=mp4]+bestaudio[ext=m4a]/best[height<=144][ext=mp4]',
     '240p': 'best[height<=240][ext=mp4]+bestaudio[ext=m4a]/best[height<=240][ext=mp4]',
@@ -22,33 +24,44 @@ QUALITY_OPTS = {
     '🖼 Превью': 'thumbnail',
 }
 
+# Список поддерживаемых сайтов (БЕЗ ЮТУБА!)
+SUPPORTED_SITES = r'(tiktok\.com|instagram\.com|likee\.com|vk\.com|twitter\.com|x\.com|facebook\.com|fb\.com|reddit\.com|dailymotion\.com|vimeo\.com)'
+
 user_urls = {}
 
+# ===== КОМАНДА /start =====
 @bot.message_handler(commands=['start'])
 def start_message(message):
     bot.send_message(
         message.chat.id,
-        "🎬 YouTube Downloader Bot\n\n"
-        "1. Кинь ссылку на видео\n"
-        "2. Выбери качество\n"
-        "3. Получи видео, звук или обложку!"
+        "🎬 **Универсальный Downloader Bot**\n\n"
+        "📌 Поддерживает:\n"
+        "• TikTok\n• Instagram\n• Likee\n"
+        "• VK\n• Twitter/X\n• Facebook\n• Reddit\n"
+        "• Dailymotion\n• Vimeo\n\n"
+        "🔥 **Как пользоваться:**\n"
+        "1️⃣ Кинь ссылку на видео\n"
+        "2️⃣ Выбери качество из кнопок\n"
+        "3️⃣ Получи видео, MP3 или обложку!\n\n"
+        "⚡ Всё работает без ограничений!",
+        parse_mode='Markdown'
     )
 
-# ===== ОБРАБОТЧИК КНОПОК (ВЫБОР КАЧЕСТВА) =====
+# ===== ОБРАБОТЧИК КНОПОК =====
 @bot.message_handler(func=lambda message: message.text in QUALITY_OPTS)
 def download_choice(message):
     chat_id = message.chat.id
     choice = message.text
     
     if chat_id not in user_urls:
-        bot.send_message(chat_id, "❌ Сначала кинь ссылку на видео!")
+        bot.send_message(chat_id, "❌ Сначала кинь ссылку!")
         return
     
     url = user_urls[chat_id]
-    bot.send_message(chat_id, f"⏳ Качаю {choice}... Подожди немного ⏳")
+    bot.send_message(chat_id, f"⏳ Качаю **{choice}**... Подожди немного ⏳", parse_mode='Markdown')
     
     try:
-        # ===== Превью =====
+        # ===== ПРЕВЬЮ =====
         if choice == '🖼 Превью':
             ydl_opts = {'quiet': True, 'no_warnings': True}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -85,7 +98,7 @@ def download_choice(message):
             cleanup(chat_id)
             return
         
-        # ===== Видео =====
+        # ===== ВИДЕО =====
         ydl_opts = {
             'format': QUALITY_OPTS[choice],
             'merge_output_format': 'mp4',
@@ -100,7 +113,7 @@ def download_choice(message):
         filename = f'video_{chat_id}.mp4'
         if os.path.exists(filename):
             with open(filename, 'rb') as f:
-                bot.send_video(chat_id, f, caption=f"🎬 {choice} готово!")
+                bot.send_video(chat_id, f, caption=f"🎬 **{choice}** готово!", parse_mode='Markdown')
             os.remove(filename)
         else:
             bot.send_message(chat_id, "❌ Файл не найден")
@@ -118,13 +131,22 @@ def handle_url(message):
     chat_id = message.chat.id
     url = message.text.strip()
     
-    # Проверяем, что это ссылка
-    if not re.search(r'(youtube\.com|youtu\.be)', url):
-        bot.reply_to(message, "❌ Это не ссылка с YouTube! Попробуй ещё раз.")
+    # Проверка на поддерживаемый сайт (БЕЗ ЮТУБА!)
+    if not re.search(SUPPORTED_SITES, url):
+        bot.reply_to(
+            message,
+            "❌ Это не ссылка с поддерживаемого сайта!\n\n"
+            "✅ Поддерживаются:\n"
+            "• TikTok\n• Instagram\n• Likee\n"
+            "• VK\n• Twitter/X\n• Facebook\n• Reddit\n"
+            "• Dailymotion\n• Vimeo\n\n"
+            "💡 Просто кинь ссылку и выбери качество!"
+        )
         return
     
     user_urls[chat_id] = url
     
+    # Создаём клавиатуру с кнопками
     markup = types.ReplyKeyboardMarkup(row_width=3, resize_keyboard=True)
     buttons = ['144p', '240p', '360p', '480p', '720p', '1080p', '2K', '4K', '🎵 MP3', '🖼 Превью']
     for btn in buttons:
@@ -136,8 +158,8 @@ def handle_url(message):
         reply_markup=markup
     )
 
+# ===== ОЧИСТКА =====
 def cleanup(chat_id):
-    """Удаляет временные файлы и очищает сессию"""
     markup = types.ReplyKeyboardRemove()
     bot.send_message(chat_id, "✅ Готово! Кинь новую ссылку.", reply_markup=markup)
     if chat_id in user_urls:
@@ -149,5 +171,8 @@ def cleanup(chat_id):
             except:
                 pass
 
-print("🚀 БОТ ЗАПУЩЕН! Жду ссылки...")
+# ===== ЗАПУСК =====
+print("🚀 БОТ ЗАПУЩЕН!")
+print("📌 Поддерживает: TikTok, Instagram, Likee, VK, Twitter, Facebook, Reddit, Dailymotion, Vimeo")
+print("🔥 Жду ссылки...")
 bot.infinity_polling()
